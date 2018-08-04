@@ -101,7 +101,7 @@ void MX_USB_DEVICE_Init(void)
 
   USBD_RegisterClass(&hUsbDeviceFS, &USBD_CDC);
 
-  USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS);
+  //USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS);
 
   USBD_Start(&hUsbDeviceFS);
 

@@ -52,109 +52,121 @@
 #include "cmsis_os.h"
 #include "usb_device.h"
 
-/* USER CODE BEGIN Includes */
+/* FreeRTOS+TCP includes. */
+#include "FreeRTOS_IP.h"
+#include "FreeRTOS_Sockets.h"
+//#include "FreeRTOS_tcp_server.h"
+//#include "FreeRTOS_DHCP.h"
 
-/* USER CODE END Includes */
+#include <stdlib.h>
 
-/* Private variables ---------------------------------------------------------*/
+/*
+ * Just seeds the simple pseudo random number generator.
+ */
+
+#define mainHOST_NAME					"RTOSDemo"
+#define mainDEVICE_NICK_NAME			"stm32"
+
+
+/* The MAC address array is not declared const as the MAC address will
+normally be read from an EEPROM and not hard coded (in real deployed
+applications).*/
+static uint8_t ucMACAddress[ 6 ] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 };
+
+/* Define the network addressing.  These parameters will be used if either
+ipconfigUDE_DHCP is 0 or if ipconfigUSE_DHCP is 1 but DHCP auto configuration
+failed. */
+static const uint8_t ucIPAddress[ 4 ] = { 10, 10, 10, 200 };
+static const uint8_t ucNetMask[ 4 ] = { 255, 0, 0, 0 };
+static const uint8_t ucGatewayAddress[ 4 ] = { 10, 10, 10, 1 };
+
+/* The following is the address of an OpenDNS server. */
+static const uint8_t ucDNSServerAddress[ 4 ] = { 208, 67, 222, 222 };
+
 osThreadId defaultTaskHandle;
 
-/* USER CODE BEGIN PV */
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 void StartDefaultTask(void const * argument);
 
-/* USER CODE BEGIN PFP */
-/* Private function prototypes -----------------------------------------------*/
-
-/* USER CODE END PFP */
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  *
-  * @retval None
-  */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration----------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
+  /* Initialise the RTOS's TCP/IP stack.  The tasks that use the network
+  are created in the vApplicationIPNetworkEventHook() hook function
+  below.  The hook function is called when the network connects. */
+  FreeRTOS_IPInit( ucIPAddress,
+                   ucNetMask,
+                   ucGatewayAddress,
+                   ucDNSServerAddress,
+                   ucMACAddress );
 
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
 
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
- 
-
-  /* Start scheduler */
   osKernelStart();
   
-  /* We should never get here as control is now taken by the scheduler */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
 
-  /* USER CODE END WHILE */
-
-  /* USER CODE BEGIN 3 */
-
   }
-  /* USER CODE END 3 */
+}
+
+/*-----------------------------------------------------------*/
+
+void vApplicationPingReplyHook( ePingReplyStatus_t eStatus, uint16_t usIdentifier )
+{
+}
+
+
+/* Called by FreeRTOS+TCP when the network connects or disconnects.  Disconnect
+events are only received if implemented in the MAC driver. */
+void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent )
+{
 
 }
+
+const char *pcApplicationHostnameHook( void )
+{
+	/* Assign the name "rtosdemo" to this network node.  This function will be
+	called during the DHCP: the machine will be registered with an IP address
+	plus this name. */
+	return mainHOST_NAME;
+}
+
+UBaseType_t uxRand( void )
+{
+	return( ( int ) ( rand() >> 16UL ) & 0x7fffUL );
+}
+
+
+
+BaseType_t xApplicationDNSQueryHook( const char *pcName )
+{
+BaseType_t xReturn;
+
+	/* Determine if a name lookup is for this node.  Two names are given
+	to this node: that returned by pcApplicationHostnameHook() and that set
+	by mainDEVICE_NICK_NAME. */
+	if( strcasecmp( pcName, pcApplicationHostnameHook() ) == 0 )
+	{
+		xReturn = pdPASS;
+	}
+	else if( strcasecmp( pcName, mainDEVICE_NICK_NAME ) == 0 )
+	{
+		xReturn = pdPASS;
+	}
+	else
+	{
+		xReturn = pdFAIL;
+	}
+
+	return xReturn;
+}
+/*-----------------------------------------------------------*/
 
 /**
   * @brief System Clock Configuration
