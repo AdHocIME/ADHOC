@@ -57,6 +57,7 @@
 #include "FreeRTOS_Sockets.h"
 //#include "FreeRTOS_tcp_server.h"
 //#include "FreeRTOS_DHCP.h"
+#include "usbd_cdc.h"
 
 #include <stdlib.h>
 
@@ -67,7 +68,9 @@
 #define mainHOST_NAME					"RTOSDemo"
 #define mainDEVICE_NICK_NAME			"stm32"
 
-
+#ifndef configIPINIT_TASK_STACK_SIZE
+	#define configIPINIT_TASK_STACK_SIZE ( 4 * configMINIMAL_STACK_SIZE )
+#endif
 /* The MAC address array is not declared const as the MAC address will
 normally be read from an EEPROM and not hard coded (in real deployed
 applications).*/
@@ -88,6 +91,7 @@ osThreadId defaultTaskHandle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 void StartDefaultTask(void const * argument);
+static void ipInitHandlerTask(void const * argument);
 
 int main(void)
 {
@@ -98,21 +102,29 @@ int main(void)
   /* Initialise the RTOS's TCP/IP stack.  The tasks that use the network
   are created in the vApplicationIPNetworkEventHook() hook function
   below.  The hook function is called when the network connects. */
-  FreeRTOS_IPInit( ucIPAddress,
-                   ucNetMask,
-                   ucGatewayAddress,
-                   ucDNSServerAddress,
-                   ucMACAddress );
-
 
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  xTaskCreate( ipInitHandlerTask, "IPINIT",  configIPINIT_TASK_STACK_SIZE , NULL, configMAX_PRIORITIES - 1, &xipInitTaskHandle );
+
   osKernelStart();
   
   while (1)
   {
 
   }
+}
+
+static void ipInitHandlerTask(void const * argument)
+{
+	/* init code for USB_DEVICE */
+    ulTaskNotifyTake( pdFALSE, portMAX_DELAY );
+	FreeRTOS_IPInit( ucIPAddress,
+				   ucNetMask,
+				   ucGatewayAddress,
+				   ucDNSServerAddress,
+				   ucMACAddress );
+	vTaskDelete( NULL );
 }
 
 /*-----------------------------------------------------------*/
@@ -246,16 +258,17 @@ static void MX_GPIO_Init(void)
 /* USER CODE END 4 */
 
 /* StartDefaultTask function */
+
 void StartDefaultTask(void const * argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
-
+  osDelay(2000);
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
   }
   /* USER CODE END 5 */ 
 }

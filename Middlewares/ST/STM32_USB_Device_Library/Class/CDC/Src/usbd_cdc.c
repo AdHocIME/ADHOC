@@ -66,19 +66,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* FreeRTOS includes. */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "semphr.h"
-
-/* FreeRTOS+TCP includes. */
-#include "FreeRTOS_IP.h"
-#include "FreeRTOS_Sockets.h"
-#include "FreeRTOS_IP_Private.h"
-#include "NetworkBufferManagement.h"
-#include "NetworkInterface.h"
-
 const uint32_t OIDSupportedList[] =
 {
     OID_GEN_SUPPORTED_LIST,
@@ -139,6 +126,7 @@ uint8_t *rndis_tx_ptr = NULL;
 int rndis_first_tx = 1;
 int rndis_tx_size = 0;
 int rndis_sended = 0;
+char data_to_send[300 + 14 + 4];
 rndis_state_t rndis_state;
 int sended = 0;
 static TaskHandle_t xEMACTaskHandle = NULL;
@@ -370,6 +358,12 @@ static uint8_t  USBD_CDC_Init (USBD_HandleTypeDef *pdev,
     //rxState =0;
 	pDev = pdev;
     USBD_LL_PrepareReceive(pdev, RNDIS_DATA_OUT_EP, (uint8_t*)usb_rx_buffer, RNDIS_DATA_OUT_SZ);
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if( xipInitTaskHandle != NULL )
+	{
+		vTaskNotifyGiveFromISR( xipInitTaskHandle, &xHigherPriorityTaskWoken );
+		portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+	}
     return 0;
 }
 
@@ -436,6 +430,9 @@ static uint8_t  USBD_CDC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		rndis_tx_ptr += sended;
 		sended = 0;
 		usbd_cdc_transfer(pdev);
+		if(rndis_tx_size<=0){
+			usb_eth_stat.txok++;
+		}
 	}
 	return USBD_OK;
 }
@@ -583,7 +580,7 @@ static uint8_t  *usbd_rndis_GetDeviceQualifierDesc (uint16_t *length){
 }
 
 static uint8_t usbd_cdc_transfer(void *pdev){
-	if (sended != 0 || rndis_tx_ptr == NULL || rndis_tx_size <= 0) return USBD_OK;
+	if (sended != 0 || rndis_tx_ptr == NULL || rndis_tx_size <= 0 || rndis_state!=rndis_data_initialized) return USBD_OK;
 	if (rndis_first_tx)
 	{
 		static uint8_t first[RNDIS_DATA_IN_SZ];
@@ -600,7 +597,7 @@ static uint8_t usbd_cdc_transfer(void *pdev){
 		if (sended > rndis_tx_size) sended = rndis_tx_size;
 		memcpy(first + sizeof(rndis_data_packet_t), rndis_tx_ptr, sended);
 
-		USBD_LL_Transmit(pdev, RNDIS_DATA_IN_EP, (uint8_t *)&first, sizeof(rndis_data_packet_t) + sended);
+		USBD_LL_Transmit(pdev, RNDIS_DATA_IN_EP, (uint8_t *)first, sizeof(rndis_data_packet_t) + sended);
 	}
 	else
 	{
@@ -623,7 +620,7 @@ static void handle_packet(const char *data, int size){
 		return;
 	}
 	usb_eth_stat.rxok++;
-	//rndis_rxproc(&rndis_rx_buffer[p->DataOffset + offsetof(rndis_data_packet_t, DataOffset)], p->DataLength);
+	rndis_rxproc(&rndis_rx_buffer[p->DataOffset + offsetof(rndis_data_packet_t, DataOffset)], p->DataLength);
 }
 
 static const char *rndis_vendor = RNDIS_VENDOR;
@@ -791,7 +788,7 @@ void rndis_handle_set_msg(void  *pdev){
 
 BaseType_t xNetworkInterfaceInitialise( void )
 {
-	//xTaskCreate( prvEMACHandlerTask, "EMAC", configEMAC_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &xEMACTaskHandle );
+	xTaskCreate( prvEMACHandlerTask, "EMAC", configEMAC_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &xEMACTaskHandle );
 
     return pdTRUE;
 }
@@ -807,15 +804,14 @@ BaseType_t xNetworkInterfaceOutput( NetworkBufferDescriptor_t * const pxDescript
     by pxDescriptor->xDataLength. */
 	if (pxDescriptor->xDataLength <= 0 ||
 			pxDescriptor->xDataLength > ETH_MAX_PACKET_SIZE ||
-		rndis_tx_size > 0) return false;
-    static char data[RNDIS_MTU + 14 + 4];
+		rndis_tx_size > 0) return pdFALSE;
 
-	__disable_irq();
-	rndis_first_tx = true;
-	memcpy((void *) data, (void *) pxDescriptor->pucEthernetBuffer, pxDescriptor->xDataLength);
-	rndis_tx_ptr = (uint8_t *)data;
-	rndis_tx_size = pxDescriptor->xDataLength;
-	rndis_sended = 0;
+	//__disable_irq();
+	//rndis_first_tx = true;
+	//memcpy((void *) data_to_send, (void *) pxDescriptor->pucEthernetBuffer, pxDescriptor->xDataLength);
+	//rndis_sended = 0;
+	//rndis_tx_ptr = (uint8_t *)data_to_send;
+	//rndis_tx_size = pxDescriptor->xDataLength;
 	//usbd_cdc_transfer(pDev);
 	__enable_irq();
     /* Call the standard trace macro to log the send event. */
@@ -838,8 +834,8 @@ static void rndis_rxproc(const char *data, int size){
 	ulISREvents |= EMAC_IF_RX_EVENT;
 	if( xEMACTaskHandle != NULL )
 	{
-		//vTaskNotifyGiveFromISR( xEMACTaskHandle, &xHigherPriorityTaskWoken );
-		//portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+		vTaskNotifyGiveFromISR( xEMACTaskHandle, &xHigherPriorityTaskWoken );
+		portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 	}
 }
 static void prvEMACHandlerTask( void *pvParameters )
@@ -850,10 +846,9 @@ static void prvEMACHandlerTask( void *pvParameters )
 	/* Used to indicate that xSendEventStructToIPTask() is being called because
 	of an Ethernet receive event. */
 	IPStackEvent_t xRxEvent;
-	const TickType_t ulMaxBlockTime = pdMS_TO_TICKS( 100UL );
     for( ;; )
     {
-        ulTaskNotifyTake( pdFALSE, ulMaxBlockTime );
+        ulTaskNotifyTake( pdFALSE, portMAX_DELAY );
 		xBytesReceived = rndis_tx_tcp_size;
 		if( xBytesReceived > 0 ){
 			/* Allocate a network buffer descriptor that points to a buffer

@@ -43,6 +43,19 @@
 #include "usbd_ioreq.h"
 #include "rndis_protocol.h"
 
+/* FreeRTOS includes. */
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "semphr.h"
+
+/* FreeRTOS+TCP includes. */
+#include "FreeRTOS_IP.h"
+#include "FreeRTOS_Sockets.h"
+#include "FreeRTOS_IP_Private.h"
+#include "NetworkBufferManagement.h"
+#include "NetworkInterface.h"
+
 #define RNDIS_NOTIFICATION_IN_EP 0x81
 #define RNDIS_DATA_IN_EP         0x82
 #define RNDIS_DATA_OUT_EP        0x01
@@ -67,6 +80,7 @@ extern rndis_state_t rndis_state;
 
 bool   rndis_can_send(void);
 bool   rndis_send(const void *data, int size);
+TaskHandle_t xipInitTaskHandle;
 
 
 #ifdef __cplusplus
