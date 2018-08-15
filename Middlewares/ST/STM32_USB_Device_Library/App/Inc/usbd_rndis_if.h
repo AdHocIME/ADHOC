@@ -1,8 +1,7 @@
 /**
   ******************************************************************************
-  * @file           : usb_device.h
-  * @version        : v1.0_Cube
-  * @brief          : Header for usb_device.c file.
+  * @file           : usbd_rndis_if.h
+  * @brief          : Header for usbd_rndis_if file.
   ******************************************************************************
   * This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
@@ -10,7 +9,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2017 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -45,70 +44,94 @@
   * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   *
   ******************************************************************************
-  */
+*/
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __USB_DEVICE__H__
-#define __USB_DEVICE__H__
+#ifndef __USBD_RNDIS_IF_H
+#define __USBD_RNDIS_IF_H
 
 #ifdef __cplusplus
  extern "C" {
 #endif
-
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f4xx.h"
-#include "stm32f4xx_hal.h"
-#include "usbd_def.h"
-
-
+#include "usbd_rndis.h"
 /* USER CODE BEGIN INCLUDE */
 /* USER CODE END INCLUDE */
 
-/** @addtogroup USBD_OTG_DRIVER
+/** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
   * @{
   */
-
-/** @defgroup USBD_DEVICE USBD_DEVICE
-  * @brief Device file for Usb otg low level driver.
+  
+/** @defgroup USBD_RNDIS_IF
+  * @brief header 
   * @{
-  */
+  */ 
 
-/** @defgroup USBD_DEVICE_Exported_Variables USBD_DEVICE_Exported_Variables
-  * @brief Public variables.
+/** @defgroup USBD_RNDIS_IF_Exported_Defines
   * @{
-  */
-
-/** USB device core handle. */
-extern USBD_HandleTypeDef hUsbDeviceFS;
+  */ 
+/* USER CODE BEGIN EXPORTED_DEFINES */
+/* USER CODE END EXPORTED_DEFINES */
 
 /**
   * @}
-  */
+  */ 
 
-/** @defgroup USBD_DEVICE_Exported_FunctionsPrototype USBD_DEVICE_Exported_FunctionsPrototype
-  * @brief Declaration of public functions for Usb device.
+/** @defgroup USBD_RNDIS_IF_Exported_Types
   * @{
-  */
-
-/** USB Device initialization function. */
-void MX_USB_DEVICE_Init(void);
-
-/**
-  * @}
-  */
+  */  
+/* USER CODE BEGIN EXPORTED_TYPES */
+/* USER CODE END EXPORTED_TYPES */
 
 /**
   * @}
-  */
+  */ 
+
+/** @defgroup USBD_RNDIS_IF_Exported_Macros
+  * @{
+  */ 
+/* USER CODE BEGIN EXPORTED_MACRO */
+/* USER CODE END EXPORTED_MACRO */
 
 /**
   * @}
-  */
+  */ 
 
+/** @defgroup USBD_AUDIO_IF_Exported_Variables
+  * @{
+  */ 
+extern USBD_RNDIS_ItfTypeDef  USBD_RNDIS_Interface_fops_FS;
+
+/* USER CODE BEGIN EXPORTED_VARIABLES */
+/* USER CODE END EXPORTED_VARIABLES */
+
+/**
+  * @}
+  */ 
+
+/** @defgroup USBD_RNDIS_IF_Exported_FunctionsPrototype
+  * @{
+  */ 
+uint8_t RNDIS_Transmit_FS(uint8_t* Buf, uint16_t Len);
+
+/* USER CODE BEGIN EXPORTED_FUNCTIONS */
+/* USER CODE END EXPORTED_FUNCTIONS */
+/**
+  * @}
+  */ 
+
+/**
+  * @}
+  */ 
+
+/**
+  * @}
+  */ 
+  
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* __USB_DEVICE__H__ */
+  
+#endif /* __USBD_RNDIS_IF_H */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
