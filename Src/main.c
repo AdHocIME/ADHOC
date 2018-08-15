@@ -91,7 +91,7 @@ osThreadId defaultTaskHandle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 void StartDefaultTask(void const * argument);
-static void ipInitHandlerTask(void const * argument);
+void ipInitHandlerTask( void *pvParameters );
 
 int main(void)
 {
@@ -115,10 +115,11 @@ int main(void)
   }
 }
 
-static void ipInitHandlerTask(void const * argument)
+void ipInitHandlerTask( void *pvParameters )
 {
 	/* init code for USB_DEVICE */
     ulTaskNotifyTake( pdFALSE, portMAX_DELAY );
+    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
 	FreeRTOS_IPInit( ucIPAddress,
 				   ucNetMask,
 				   ucGatewayAddress,
@@ -244,12 +245,35 @@ void SystemClock_Config(void)
         * EVENT_OUT
         * EXTI
 */
+
 static void MX_GPIO_Init(void)
 {
 
+  GPIO_InitTypeDef GPIO_InitStruct;
+
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PD15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PD15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_14;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
 }
 
@@ -268,6 +292,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
     osDelay(1000);
   }
   /* USER CODE END 5 */ 

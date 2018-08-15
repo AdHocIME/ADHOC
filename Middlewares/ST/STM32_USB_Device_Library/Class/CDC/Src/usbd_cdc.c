@@ -126,7 +126,8 @@ uint8_t *rndis_tx_ptr = NULL;
 int rndis_first_tx = 1;
 int rndis_tx_size = 0;
 int rndis_sended = 0;
-char data_to_send[300 + 14 + 4];
+bool rndis_tx_ZLP = false;
+__ALIGN_BEGIN char data_to_send[ETH_MAX_PACKET_SIZE] __ALIGN_END;
 rndis_state_t rndis_state;
 int sended = 0;
 static TaskHandle_t xEMACTaskHandle = NULL;
@@ -312,6 +313,7 @@ __ALIGN_BEGIN uint8_t usbd_cdc_CfgDesc[] __ALIGN_END =
     0                             /* bInterval       = ignored for BULK */
 };
 
+
 __ALIGN_BEGIN uint8_t USBD_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __ALIGN_END =
 {
     USB_LEN_DEV_QUALIFIER_DESC,
@@ -429,10 +431,14 @@ static uint8_t  USBD_CDC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 		rndis_tx_size -= sended;
 		rndis_tx_ptr += sended;
 		sended = 0;
-		usbd_cdc_transfer(pdev);
 		if(rndis_tx_size<=0){
 			usb_eth_stat.txok++;
 		}
+		if (rndis_tx_ZLP){
+			USBD_LL_Transmit (pdev, RNDIS_DATA_IN_EP, NULL, 0);
+			rndis_tx_ZLP = false;
+		}
+		usbd_cdc_transfer(pdev);
 	}
 	return USBD_OK;
 }
@@ -592,6 +598,8 @@ static uint8_t usbd_cdc_transfer(void *pdev){
 		hdr->MessageLength = sizeof(rndis_data_packet_t) + rndis_tx_size;
 		hdr->DataOffset = sizeof(rndis_data_packet_t) - offsetof(rndis_data_packet_t, DataOffset);
 		hdr->DataLength = rndis_tx_size;
+		if (hdr->MessageLength % RNDIS_DATA_IN_SZ == 0)
+			rndis_tx_ZLP = true;
 
 		sended = RNDIS_DATA_IN_SZ - sizeof(rndis_data_packet_t);
 		if (sended > rndis_tx_size) sended = rndis_tx_size;
@@ -802,17 +810,20 @@ BaseType_t xNetworkInterfaceOutput( NetworkBufferDescriptor_t * const pxDescript
     data to be sent as two separate parameters.  The start of the data is located
     by pxDescriptor->pucEthernetBuffer.  The length of the data is located
     by pxDescriptor->xDataLength. */
-	if (pxDescriptor->xDataLength <= 0 ||
-			pxDescriptor->xDataLength > ETH_MAX_PACKET_SIZE ||
-		rndis_tx_size > 0) return pdFALSE;
+	if (pxDescriptor->xDataLength <= 0 || pxDescriptor->xDataLength > ETH_MAX_PACKET_SIZE || rndis_tx_size > 0){
+		__disable_irq();
+		usbd_cdc_transfer(pDev);
+		__enable_irq();
+		return pdFALSE;
+	}
 
-	//__disable_irq();
-	//rndis_first_tx = true;
-	//memcpy((void *) data_to_send, (void *) pxDescriptor->pucEthernetBuffer, pxDescriptor->xDataLength);
-	//rndis_sended = 0;
-	//rndis_tx_ptr = (uint8_t *)data_to_send;
-	//rndis_tx_size = pxDescriptor->xDataLength;
-	//usbd_cdc_transfer(pDev);
+	__disable_irq();
+	rndis_first_tx = true;
+	memcpy((void *) data_to_send, (void *) pxDescriptor->pucEthernetBuffer, pxDescriptor->xDataLength);
+	rndis_sended = 0;
+	rndis_tx_ptr = (uint8_t *)data_to_send;
+	rndis_tx_size = pxDescriptor->xDataLength;
+	usbd_cdc_transfer(pDev);
 	__enable_irq();
     /* Call the standard trace macro to log the send event. */
     iptraceNETWORK_INTERFACE_TRANSMIT();
